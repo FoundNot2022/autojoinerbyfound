@@ -9,64 +9,55 @@
         print("[AutoJoiner]: " .. str)
     end
 
-    -- Busca el gui que tenga un TextLabel con "Job-ID Input"
-    local function findTargetGui()
-        for _, descendant in ipairs(game:GetService('CoreGui'):GetDescendants()) do
-            if descendant:IsA('TextLabel') and descendant.Text == 'Job-ID Input' then
-                return descendant.Parent -- frame padre del label
-            end
-        end
-        return nil
-    end
-
-    local function setJobIDText(parentFrame, text)
-        if not parentFrame then
-            prints("No se encontro ningun frame con 'Job-ID Input'")
-            return nil
-        end
-
-        for _, frameChild in ipairs(parentFrame:GetChildren()) do
-            if frameChild:IsA('Frame') then
-                local textBox = frameChild:FindFirstChildOfClass('TextBox')
-                if textBox then
-                    textBox.Text = text
-                    textBox:CaptureFocus()
-                    textBox:ReleaseFocus()
-                    prints('Textbox updated: ' .. text .. ' (10m+ bypass)')
-                    return textBox
+    -- 🔎 Encuentra el boton "Input" al costado de "Job-ID Input"
+    local function findJobIDBox()
+        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
+            if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
+                local parent = d.Parent
+                for _, c in ipairs(parent:GetChildren()) do
+                    if c:IsA("TextButton") and c.Text == "Input" then
+                        return c
+                    end
                 end
             end
         end
         return nil
     end
 
-    local function clickJoinButton()
-        for _, descendant in ipairs(game:GetService('CoreGui'):GetDescendants()) do
-            if descendant:IsA('TextLabel') and descendant.Text == 'Join Job-ID' then
-                local parentFrame = descendant.Parent
-                return parentFrame:FindFirstChildOfClass('TextButton')
+    -- 🔎 Encuentra el boton que corresponde a "Join Job-ID"
+    local function findJoinButton()
+        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
+            if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
+                local parent = d.Parent
+                local btn = parent:FindFirstChildOfClass("TextButton")
+                if btn then return btn end
             end
         end
         return nil
     end
 
+    -- 🚀 Pone el JobID y clickea Join
     local function bypass10M(jobId)
-        local parentFrame = findTargetGui()
-        local textBox = setJobIDText(parentFrame, jobId)
-        local button = clickJoinButton()
+        local inputBtn = findJobIDBox()
+        local joinBtn = findJoinButton()
 
-        if not textBox or not button then
-            prints("No se encontro el TextBox o el boton de Join")
+        if not inputBtn or not joinBtn then
+            prints("❌ No se encontro el Input o el Join Job-ID")
             return
         end
 
-        local upConnections = getconnections(button.MouseButton1Up)
+        -- Setear texto en el Input
+        inputBtn.Text = jobId
+        prints("✅ JobID colocado en Input: " .. jobId)
+
+        -- Simular click en el boton Join
+        local conns = getconnections(joinBtn.MouseButton1Up)
         task.defer(function()
             task.wait(0.005)
-            for _, conn in ipairs(upConnections) do
-                conn:Fire()
+            for _, c in ipairs(conns) do
+                c:Fire()
             end
-            prints('Join server clicked (10m+ bypass)')
+            prints("✅ Join Job-ID clickeado (10m+ bypass)")
         end)
     end
 
@@ -82,7 +73,7 @@
         end
     end
 
-    -- Conectar al WebSocket
+    -- 🌐 Conectar al WebSocket
     local function connect()
         while not connected do
             prints("Trying to connect to " .. WebSocketURL)
@@ -98,7 +89,7 @@
         end
     end
 
-    -- Función para iniciar teleport
+    -- 🚪 Iniciar teleport
     local function startTeleport()
         if not ws then
             prints("WebSocket not connected yet!")
@@ -123,7 +114,7 @@
         prints("Teleport process started!")
     end
 
-    -- Crear interfaz gráfica
+    -- 🎨 Crear interfaz grafica
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoJoinerGUI"
     screenGui.Parent = game:GetService("CoreGui")
@@ -131,7 +122,7 @@
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(0, 150, 0, 50)
     button.Position = UDim2.new(0.5, -75, 0.5, -25)
-    button.Text = "Autojoiner by found1"
+    button.Text = "Autojoiner by Foundcito"
     button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     button.TextScaled = true
     button.Parent = screenGui
@@ -140,6 +131,6 @@
         startTeleport()
     end)
 
-    -- Solo conectamos al WebSocket al inyectar, no hacemos teleport automático
+    -- Solo conectamos al WebSocket al inyectar, no hacemos teleport automatico
     connect()
 end)()
