@@ -9,31 +9,28 @@
         print("[AutoJoiner]: " .. str)
     end
 
-    -- 🔎 Encuentra el boton al costado de "Job-ID Input"
--- 🔎 Encuentra el cuadro de texto al costado de "Job-ID Input"
-local function findJobIDBox()
-    for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
-        if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
-            local parent = d.Parent
-            for _, c in ipairs(parent:GetChildren()) do
-                if c:IsA("TextBox") then
-                    prints("✅ Detectado cuadro de texto Job-ID Input")
-                    return c
-                end
+    -- 🔎 Encuentra el cuadro de texto correcto (InputText)
+    local function findJobIDBox()
+        for _, d in ipairs(gethui():GetDescendants()) do
+            if d:IsA("TextBox") and d.Name == "InputText" then
+                prints("✅ Detectado cuadro de texto Job-ID Input (InputText)")
+                return d
             end
         end
+        return nil
     end
-    return nil
-end
 
-
-    -- 🔎 Encuentra el boton que corresponde a "Join Job-ID"
+    -- 🔎 Encuentra el botón Join Job-ID
     local function findJoinButton()
-        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
+        for _, d in ipairs(gethui():GetDescendants()) do
             if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
                 local parent = d.Parent
-                local btn = parent:FindFirstChildOfClass("TextButton")
-                if btn then return btn end
+                for _, c in ipairs(parent:GetChildren()) do
+                    if c:IsA("TextButton") then
+                        prints("✅ Detectado botón Join Job-ID")
+                        return c
+                    end
+                end
             end
         end
         return nil
@@ -41,31 +38,31 @@ end
 
     -- 🚀 Pone el JobID y clickea Join
     local function bypass10M(jobId)
-        local inputBtn = findJobIDBox()
+        local inputBox = findJobIDBox()
         local joinBtn = findJoinButton()
 
-        if not inputBtn or not joinBtn then
-            prints("❌ No se encontro el Input o el Join Job-ID")
+        if not inputBox or not joinBtn then
+            prints("❌ No se encontró el Input o el Join Job-ID")
             return
         end
 
-        -- Setear texto en el Input
--- Escribir el texto en el TextBox
-inputBtn.Text = jobId
-inputBtn:CaptureFocus()
-inputBtn:ReleaseFocus()
-
+        -- Poner el texto en el InputText
+        inputBox.Text = jobId
+        inputBox:CaptureFocus()
+        inputBox:ReleaseFocus()
         prints("✅ JobID colocado en Input: " .. jobId)
 
-        -- Simular click en el boton Join
+        -- Simular click en el botón
         local conns = getconnections(joinBtn.MouseButton1Up)
-        task.defer(function()
-            task.wait(0.005)
+        if #conns > 0 then
             for _, c in ipairs(conns) do
                 c:Fire()
             end
-            prints("✅ Join Job-ID clickeado (10m+ bypass)")
-        end)
+            prints("✅ Join Job-ID clickeado con conexiones")
+        else
+            joinBtn:Activate()
+            prints("✅ Join Job-ID activado directamente")
+        end
     end
 
     local function justJoin(script)
@@ -121,7 +118,7 @@ inputBtn:ReleaseFocus()
         prints("Teleport process started!")
     end
 
-    -- 🎨 Crear interfaz grafica
+    -- 🎨 Crear interfaz gráfica
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoJoinerGUI"
     screenGui.Parent = game:GetService("CoreGui")
@@ -129,7 +126,7 @@ inputBtn:ReleaseFocus()
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(0, 150, 0, 50)
     button.Position = UDim2.new(0.5, -75, 0.5, -25)
-    button.Text = "Autojoiner by Foundcito1"
+    button.Text = "Autojoiner by Foundcito2"
     button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     button.TextScaled = true
     button.Parent = screenGui
@@ -138,6 +135,6 @@ inputBtn:ReleaseFocus()
         startTeleport()
     end)
 
-    -- Solo conectamos al WebSocket al inyectar, no hacemos teleport automatico
+    -- Solo conectamos al WebSocket al inyectar, no hacemos teleport automático
     connect()
 end)()
