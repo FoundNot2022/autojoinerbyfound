@@ -1,26 +1,21 @@
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
-print("===== Explorando lugares posibles =====")
-
--- CoreGui
-print("\n--- CoreGui ---")
-for _, obj in ipairs(game:GetService("CoreGui"):GetChildren()) do
-    print(obj.Name, obj.ClassName)
+local function dumpGui(gui, indent)
+    indent = indent or ""
+    for _, obj in ipairs(gui:GetChildren()) do
+        local info = indent .. obj.ClassName .. " | Name: " .. obj.Name
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            info = info .. " | Text: " .. tostring(obj.Text)
+        end
+        print(info)
+        dumpGui(obj, indent .. "   ")
+    end
 end
 
--- PlayerGui
-print("\n--- PlayerGui ---")
-for _, obj in ipairs(player:WaitForChild("PlayerGui"):GetChildren()) do
-    print(obj.Name, obj.ClassName)
-end
-
--- gethui (si existe)
 if gethui then
-    print("\n--- gethui() ---")
+    print("=== Explorando gethui() ===")
     for _, obj in ipairs(gethui():GetChildren()) do
-        print(obj.Name, obj.ClassName)
+        print("ROOT:", obj.Name, obj.ClassName)
+        dumpGui(obj, "   ")
     end
 else
-    print("\nNo existe gethui() en tu executor.")
+    warn("Tu executor no soporta gethui()")
 end
