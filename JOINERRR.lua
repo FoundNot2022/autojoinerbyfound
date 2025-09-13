@@ -9,14 +9,25 @@
         print("[AutoJoiner]: " .. str)
     end
 
-    -- 🔎 Encuentra el cuadro de texto al costado de "Job-ID Input"
+    -- 🔎 Encuentra el cuadro de texto correcto (InputText)
     local function findJobIDBox()
-        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
-            if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
+        for _, d in ipairs(gethui():GetDescendants()) do
+            if d:IsA("TextBox") and d.Name == "InputText" then
+                prints("✅ Detectado cuadro de texto Job-ID Input (InputText)")
+                return d
+            end
+        end
+        return nil
+    end
+
+    -- 🔎 Encuentra el botón Join Job-ID
+    local function findJoinButton()
+        for _, d in ipairs(gethui():GetDescendants()) do
+            if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
                 local parent = d.Parent
                 for _, c in ipairs(parent:GetChildren()) do
-                    if c:IsA("TextBox") then
-                        prints("✅ Detectado cuadro de texto Job-ID Input")
+                    if c:IsA("TextButton") then
+                        prints("✅ Detectado botón Join Job-ID")
                         return c
                     end
                 end
@@ -25,71 +36,41 @@
         return nil
     end
 
-    -- 🔎 Encuentra el boton que corresponde a "Join Job-ID"
-    local function findJoinButton()
-        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
-            if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
-                local parent = d.Parent
-                local btn = parent:FindFirstChildOfClass("TextButton")
-                if btn then
-                    prints("✅ Detectado botón Join Job-ID")
-                    return btn
-                end
-            end
+ local function bypass10M(jobId)
+    local inputBox = findJobIDBox()
+    local joinBtn = findJoinButton()
+
+    if not inputBox or not joinBtn then
+        prints("❌ No se encontró el Input o el Join Job-ID")
+        return
+    end
+
+    -- Poner el texto y forzar evento
+    inputBox.Text = jobId
+    inputBox:CaptureFocus()
+    task.wait(0.05)
+    inputBox:ReleaseFocus()
+
+    -- 🔥 Forzar FocusLost para que el sistema lo reconozca
+    pcall(function()
+        inputBox.FocusLost:Fire(true) -- true = enter presionado
+    end)
+
+    prints("✅ JobID colocado en Input: " .. jobId)
+
+    -- Simular click en el botón
+    local conns = getconnections(joinBtn.MouseButton1Up)
+    if #conns > 0 then
+        for _, c in ipairs(conns) do
+            c:Fire()
         end
-        return nil
+        prints("✅ Join Job-ID clickeado con conexiones")
+    else
+        joinBtn:Activate()
+        prints("✅ Join Job-ID activado directamente")
     end
+end
 
-    -- ✍️ Escribir realmente en el TextBox (simula escritura humana)
-    local function setTextBox(textBox, jobId)
-        textBox.Text = jobId
-        textBox:CaptureFocus()
-        task.wait(0.05)
-        textBox:ReleaseFocus()
-
-        -- 🔥 Forzar evento FocusLost si existe
-        pcall(function()
-            textBox.FocusLost:Fire(true) -- true = enter presionado
-        end)
-
-        prints("✅ JobID escrito en Input -> " .. jobId)
-    end
-
-    -- 🚀 Pone el JobID y clickea Join
-    local function bypass10M(jobId)
-        local inputBox = findJobIDBox()
-        local joinBtn = findJoinButton()
-
-        if not inputBox or not joinBtn then
-            prints("❌ No se encontro el Input o el Join Job-ID")
-            return
-        end
-
-        -- Escribir en el Input
-        setTextBox(inputBox, jobId)
-
-        -- Simular click en el botón Join
-        local conns = getconnections(joinBtn.MouseButton1Up)
-        task.defer(function()
-            task.wait(0.05)
-            for _, c in ipairs(conns) do
-                c:Fire()
-            end
-            prints("✅ Join Job-ID clickeado con conexiones")
-        end)
-    end
-
-    local function justJoin(script)
-        local func, err = loadstring(script)
-        if func then
-            local ok, result = pcall(func)
-            if not ok then
-                prints("Error while executing script: " .. result)
-            end
-        else
-            prints("Some unexpected error: " .. err)
-        end
-    end
 
     -- 🌐 Conectar al WebSocket
     local function connect()
@@ -132,7 +113,7 @@
         prints("Teleport process started!")
     end
 
-    -- 🎨 Crear interfaz grafica
+    -- 🎨 Crear interfaz gráfica
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoJoinerGUI"
     screenGui.Parent = game:GetService("CoreGui")
@@ -140,7 +121,7 @@
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(0, 150, 0, 50)
     button.Position = UDim2.new(0.5, -75, 0.5, -25)
-    button.Text = "Autojoiner by Foundcito3"
+    button.Text = "Autojoiner by Foundcito"
     button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     button.TextScaled = true
     button.Parent = screenGui
@@ -149,6 +130,6 @@
         startTeleport()
     end)
 
-    -- Solo conectamos al WebSocket al inyectar
+    -- Solo conectamos al WebSocket al inyectar, no hacemos teleport automático
     connect()
 end)()
