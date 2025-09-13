@@ -2,14 +2,28 @@
     repeat wait() until game:IsLoaded()
     local WebSocketURL = "ws://127.0.0.1:51948"
 
-    local ws -- variable global del WebSocket
+    local ws
     local connected = false
+    local DEBUG_MODE = true -- 🔎 Activa / desactiva el modo debug
 
     local function prints(str)
         print("[AutoJoiner]: " .. str)
     end
 
-    -- 🔎 Encuentra el boton "Input" al costado de "Job-ID Input"
+    -- 🔎 Debug: listar labels y botones
+    local function debugScan()
+        prints("---- DEBUG SCAN START ----")
+        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
+            if d:IsA("TextLabel") then
+                prints("Label encontrado -> " .. d.Text)
+            elseif d:IsA("TextButton") then
+                prints("Boton encontrado -> " .. d.Text)
+            end
+        end
+        prints("---- DEBUG SCAN END ----")
+    end
+
+    -- Encuentra el boton "Input" junto a "Job-ID Input"
     local function findJobIDBox()
         for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
             if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
@@ -24,7 +38,7 @@
         return nil
     end
 
-    -- 🔎 Encuentra el boton que corresponde a "Join Job-ID"
+    -- Encuentra el boton que corresponde a "Join Job-ID"
     local function findJoinButton()
         for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
             if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
@@ -43,14 +57,13 @@
 
         if not inputBtn or not joinBtn then
             prints("❌ No se encontro el Input o el Join Job-ID")
+            if DEBUG_MODE then debugScan() end -- Ejecutar debug si falla
             return
         end
 
-        -- Setear texto en el Input
         inputBtn.Text = jobId
         prints("✅ JobID colocado en Input: " .. jobId)
 
-        -- Simular click en el boton Join
         local conns = getconnections(joinBtn.MouseButton1Up)
         task.defer(function()
             task.wait(0.005)
@@ -131,6 +144,5 @@
         startTeleport()
     end)
 
-    -- Solo conectamos al WebSocket al inyectar, no hacemos teleport automatico
     connect()
 end)()
