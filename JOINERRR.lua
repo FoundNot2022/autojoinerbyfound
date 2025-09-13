@@ -1,17 +1,16 @@
--- AutoJoiner mejorado: intenta varias formas de "pegado" para que el UI lo reconozca
--- Pégalo en Delta. Observa la consola y copia la salida si sigue fallando.
+-- AutoJoiner con varios intentos de "pegar" JobID (clipboard, ctrl+v, typing, force events)
+-- Pégalo en Delta. Copia la consola completa si sigue fallando.
 
 (function()
-    repeat wait() until game:IsLoaded()
+    repeat task.wait() until game:IsLoaded()
     local WebSocketURL = "ws://127.0.0.1:51948"
-
     local ws
     local connected = false
 
-    local function prints(str)
-        print("[AutoJoiner]: " .. tostring(str))
-    end
+    local function prints(s) print("[AutoJoiner]: " .. tostring(s)) end
+    local function warns(s) warn("[AutoJoiner]: " .. tostring(s)) end
 
+    -- obtiene todos los descendants de CoreGui + gethui
     local function getAllDescendants()
         local arr = {}
         for _, v in ipairs(game:GetService("CoreGui"):GetDescendants()) do table.insert(arr, v) end
@@ -21,40 +20,38 @@
         return arr
     end
 
-    -- Busca InputText o cualquier TextBox candidato (primero InputText)
+    -- Buscar TextBox preferido por nombre InputText, sino heuristica
     local function findJobIDBox()
-        -- prioridad InputText por tu dump
         for _, d in ipairs(getAllDescendants()) do
             if d:IsA("TextBox") and d.Name == "InputText" then
-                prints("✅ Detectado cuadro de texto (by Name InputText)")
+                prints("✅ Encontrado TextBox por Name InputText")
                 return d
             end
         end
-        -- fallback: buscar TextBox cuyo parent tenga label "Job-ID Input"
         for _, d in ipairs(getAllDescendants()) do
-            if d:IsA("TextLabel") and d.Text and string.find(d.Text, "Job%-?ID") then
+            if d:IsA("TextLabel") and d.Text and string.find(string.lower(d.Text), "job") and string.find(string.lower(d.Text), "id") then
                 local p = d.Parent
                 if p then
                     for _, c in ipairs(p:GetChildren()) do
                         if c:IsA("TextBox") then
-                            prints("✅ Detectado cuadro de texto (by Label parent)")
+                            prints("✅ Encontrado TextBox por Label parent")
                             return c
                         end
                     end
                 end
             end
         end
-        -- fallback: devolver primer TextBox vacío oculto en menus (ultimo recurso)
+        -- fallback: primer TextBox
         for _, d in ipairs(getAllDescendants()) do
             if d:IsA("TextBox") then
-                prints("⚠️ Fallback: usando TextBox encontrado: " .. tostring(d.Name))
+                prints("⚠️ Fallback: usando TextBox: " .. tostring(d.Name))
                 return d
             end
         end
         return nil
     end
 
-    -- Busca el botón Join por label "Join Job" o por TextButton en el mismo frame que label
+    -- Buscar Join Button (por label o por texto 'join')
     local function findJoinButton()
         for _, d in ipairs(getAllDescendants()) do
             if d:IsA("TextLabel") and d.Text and string.find(string.lower(d.Text), "join") then
@@ -62,168 +59,177 @@
                 if p then
                     for _, c in ipairs(p:GetChildren()) do
                         if c:IsA("TextButton") then
-                            prints("✅ Detectado botón Join Job-ID (por label parent)")
+                            prints("✅ Encontrado Join Button (por label parent)")
                             return c
                         end
                     end
                 end
             end
         end
-        -- fallback: primer TextButton que contenga "join" en su Text
         for _, d in ipairs(getAllDescendants()) do
             if d:IsA("TextButton") and d.Text and string.find(string.lower(d.Text), "join") then
-                prints("✅ Detectado botón Join Job-ID (por TextButton text)")
+                prints("✅ Encontrado Join Button (por TextButton text)")
                 return d
             end
         end
-        -- fallback general: primer TextButton (ultimo recurso)
+        -- fallback: primer TextButton
         for _, d in ipairs(getAllDescendants()) do
             if d:IsA("TextButton") then
-                prints("⚠️ Fallback: usando TextButton encontrado: " .. tostring(d.Name))
+                prints("⚠️ Fallback: usando TextButton: " .. tostring(d.Name))
                 return d
             end
         end
         return nil
     end
 
-    -- intenta escribir "tipo humano" caracter por caracter
-    local function simulateTyping(textBox, jobId)
-        if not textBox then return false end
-        pcall(function() textBox:CaptureFocus() end)
-        local partial = ""
-        for i = 1, #jobId do
-            partial = partial .. jobId:sub(i,i)
-            pcall(function() textBox.Text = partial end)
-            -- intentar disparar TextChanged si existe
-            pcall(function()
-                if textBox.TextChanged then
-                    textBox.TextChanged:Fire(partial)
-                end
-            end)
-            task.wait(0.01) -- velocidad rapida pero no instantanea
-        end
-        task.wait(0.03)
-        pcall(function() textBox:ReleaseFocus() end)
-        -- forzar FocusLost con true (enter)
-        pcall(function() if textBox.FocusLost then textBox.FocusLost:Fire(true) end end)
-        -- intentar disparar Changed por Reflection (algunos UIs escuchan .Changed)
+    -- Método 1: clipboard + intentar pegar con VirtualInputManager Ctrl+V (si setclipboard y VIM existen)
+    local function pasteWithClipboard(textBox, jobId)
+        local ok = false
         pcall(function()
-            if textBox.Changed then
-                -- Changed es un event; no se puede Fire desde aqui normalmente, asi que no hacemos mas
-            end
-        end)
-        return true
-    end
-
-    -- intento "pegado directo" + forzar eventos
-    local function forceSetText(textBox, jobId)
-        local ok, _ = pcall(function()
-            textBox.Text = jobId
-            pcall(function() textBox:CaptureFocus() end)
-            task.wait(0.02)
-            pcall(function() textBox:ReleaseFocus() end)
-            -- TextChanged
-            if textBox.TextChanged then
-                pcall(function() textBox.TextChanged:Fire(jobId) end)
-            end
-            -- FocusLost enter
-            if textBox.FocusLost then
-                pcall(function() textBox.FocusLost:Fire(true) end)
+            if type(setclipboard) == "function" then
+                setclipboard(jobId)
+                prints("✅ setclipboard ok")
+                -- intentar enviar Ctrl+V si VirtualInputManager existe
+                if pcall(function() return game:GetService("VirtualInputManager") end) then
+                    local VIM = game:GetService("VirtualInputManager")
+                    -- intentar enfoque y Ctrl+V simulacion
+                    pcall(function() textBox:CaptureFocus() end)
+                    task.wait(0.05)
+                    -- intento varias combinaciones: Ctrl+V y Shift+Insert (algunos clients)
+                    local successCtrlV = pcall(function()
+                        VIM:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
+                        VIM:SendKeyEvent(true, Enum.KeyCode.V, false, game)
+                        VIM:SendKeyEvent(false, Enum.KeyCode.V, false, game)
+                        VIM:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
+                    end)
+                    task.wait(0.06)
+                    pcall(function() textBox:ReleaseFocus() end)
+                    if successCtrlV then
+                        prints("✅ Intentado Ctrl+V via VIM")
+                        ok = true
+                    end
+                else
+                    prints("⚠️ VirtualInputManager no disponible, clipboard seteado de todos modos")
+                    ok = true
+                end
             end
         end)
         return ok
     end
 
-    -- si existe un TextButton "Input" o similar al lado, lo activamos (a veces abre modal donde pegar)
-    local function tryActivateInputButtonNearLabel()
-        for _, d in ipairs(getAllDescendants()) do
-            if d:IsA("TextLabel") and d.Text and string.find(string.lower(d.Text), "job") and string.find(string.lower(d.Text), "id") then
-                local p = d.Parent
-                if p then
-                    for _, c in ipairs(p:GetChildren()) do
-                        if c:IsA("TextButton") then
-                            prints("🔔 Activando TextButton cercano al label Job-ID -> " .. tostring(c.Name))
-                            pcall(function() c:Activate() end)
-                            task.wait(0.05)
+    -- Método 2: tipo carácter por carácter (más "humano")
+    local function typeCharacterByCharacter(textBox, jobId, delay)
+        delay = delay or 0.03
+        pcall(function() textBox:CaptureFocus() end)
+        local partial = ""
+        for i = 1, #jobId do
+            partial = partial .. jobId:sub(i,i)
+            pcall(function() textBox.Text = partial end)
+            pcall(function()
+                if textBox.TextChanged then textBox.TextChanged:Fire(partial) end
+            end)
+            task.wait(delay)
+        end
+        task.wait(0.04)
+        pcall(function() textBox:ReleaseFocus() end)
+        pcall(function() if textBox.FocusLost then textBox.FocusLost:Fire(true) end end)
+    end
+
+    -- Método 3: forzar eventos (FocusLost + TextChanged)
+    local function forceEvents(textBox, jobId)
+        pcall(function() textBox.Text = jobId end)
+        pcall(function() if textBox.TextChanged then textBox.TextChanged:Fire(jobId) end end)
+        pcall(function() if textBox.FocusLost then textBox.FocusLost:Fire(true) end end)
+    end
+
+    -- Intenta varias estrategias en secuencia (clipboard -> ctrlv -> typing -> force)
+    local function writeJobRobust(textBox, jobId)
+        if not textBox then return false end
+
+        prints("➡️ Intentando paste via clipboard (si está disponible)")
+        local ok = pasteWithClipboard(textBox, jobId)
+        task.wait(0.08)
+        -- Comprobar si hub detecta (no hay manera universal de comprobar, asi que seguimos)
+        -- Intento typing lento si el hub parece bloquear pegados
+        prints("➡️ Intentando typing caracter por caracter (vel normal)")
+        typeCharacterByCharacter(textBox, jobId, 0.02)
+        task.wait(0.06)
+        -- Forzar eventos finales
+        prints("➡️ Forzando eventos TextChanged/FocusLost")
+        forceEvents(textBox, jobId)
+        task.wait(0.05)
+        return true
+    end
+
+    -- Intento avanzado: buscar function Join dentro de getgc y llamar (solo si getgc/islclosure disponible)
+    local function tryCallInternalJoin(jobId)
+        local ok = false
+        pcall(function()
+            if type(getgc) == "function" then
+                for _, v in ipairs(getgc(true)) do
+                    if type(v) == "function" then
+                        local info = pcall(function() return debug.getinfo(v).name end)
+                        local name = nil
+                        if info then
+                            name = debug.getinfo(v).name
+                        end
+                        if name and (string.find(string.lower(name), "join") or string.find(string.lower(name), "teleport")) then
+                            pcall(function() v(jobId) end)
+                            prints("🧩 Intentada llamada interna a: " .. tostring(name))
+                            ok = true
+                            break
                         end
                     end
                 end
             end
-        end
-    end
-
-    -- principal: intenta varias tecnicas en orden
-    local function writeJobIdRobust(textBox, jobId)
-        if not textBox then return false end
-
-        -- 1) intento rapido forzado
-        if forceSetText(textBox, jobId) then
-            prints("Intento rapido forzado hecho")
-            task.wait(0.04)
-        end
-
-        -- 2) simulate typing (mas fiable)
-        local ok = simulateTyping(textBox, jobId)
-        if ok then
-            prints("simulateTyping completado")
-        end
-
-        -- 3) si aun falla, intentar activar input button cercano y volver a escribir
-        tryActivateInputButtonNearLabel()
-        task.wait(0.05)
-        -- reintentar typing
-        simulateTyping(textBox, jobId)
-
-        -- 4) re-fuerzos extra: TextChanged + FocusLost
-        pcall(function()
-            if textBox.TextChanged then textBox.TextChanged:Fire(jobId) end
-            if textBox.FocusLost then textBox.FocusLost:Fire(true) end
         end)
-
-        return true
+        return ok
     end
 
-    -- funcion principal que recibe jobId
+    -- principal que coloca job y presiona join
     local function bypass10M(jobId)
-        prints("Bypassing 10m server: " .. tostring(jobId))
-        local inputBox = findJobIDBox()
+        prints("Bypass pedido -> " .. tostring(jobId))
+        local textBox = findJobIDBox()
         local joinBtn = findJoinButton()
-
-        if not inputBox or not joinBtn then
-            prints("❌ No se encontró el Input o el Join Job-ID")
-            -- log candidatos para debug
-            prints("---- Candidatos TextBoxes ----")
+        if not textBox then prints("❌ No se encontro TextBox (Input)") end
+        if not joinBtn then prints("❌ No se encontro Join Button") end
+        if not textBox or not joinBtn then
+            prints("Lista candidatos para debug:")
             for _, d in ipairs(getAllDescendants()) do
-                if d:IsA("TextBox") then
-                    prints("TextBox -> Name: " .. tostring(d.Name) .. " | Text: " .. tostring(d.Text) .. " | Parent: " .. tostring(d.Parent and d.Parent.Name))
-                end
-            end
-            prints("---- Candidatos TextButtons ----")
-            for _, d in ipairs(getAllDescendants()) do
-                if d:IsA("TextButton") then
-                    prints("TextButton -> Name: " .. tostring(d.Name) .. " | Text: " .. tostring(d.Text) .. " | Parent: " .. tostring(d.Parent and d.Parent.Name))
+                if d:IsA("TextBox") or d:IsA("TextButton") then
+                    prints(d.ClassName .. " | Name:"..tostring(d.Name).." | Text:"..tostring(d.Text).." | Parent:"..tostring(d.Parent and d.Parent.Name))
                 end
             end
             return
         end
 
-        -- intentar escribir de forma robusta
-        local ok = writeJobIdRobust(inputBox, jobId)
-        prints("✅ JobID colocado (intentos realizados) -> " .. tostring(jobId))
+        -- 1) Intento robusto
+        writeJobRobust(textBox, jobId)
+        prints("✅ Hecho: intento de pegado/escritura completado")
 
-        -- darle click al join (intentar conexiones y activate)
+        -- 1.5) Si el hub tiene anti-block, espera y reintenta typing mas lento
+        task.wait(0.09)
+        -- chequeo: desafortunadamente no hay forma fiable de comprobar, asi que un pequeño re-write lento
+        typeCharacterByCharacter(textBox, jobId, 0.06)
+        pcall(function() if textBox.FocusLost then textBox.FocusLost:Fire(true) end end)
+
+        -- 2) Intentar llamada interna a la funcion de join (si existe)
+        local calledInternal = tryCallInternalJoin(jobId)
+        if calledInternal then
+            prints("🧩 Intento de llamada interna hecho (si existia la funcion).")
+        end
+
+        -- 3) Hacer click en Join
+        task.wait(0.05)
         local conns = {}
         pcall(function() conns = getconnections(joinBtn.MouseButton1Up) end)
-        task.defer(function()
-            task.wait(0.05)
-            if conns and #conns > 0 then
-                for _, c in ipairs(conns) do pcall(function() c:Fire() end) end
-                prints("✅ Join Job-ID clickeado con conexiones")
-            else
-                pcall(function() joinBtn:Activate() end)
-                prints("✅ Join Job-ID activado directamente")
-            end
-        end)
+        if conns and #conns > 0 then
+            for _, c in ipairs(conns) do pcall(function() c:Fire() end) end
+            prints("✅ Join clickeado via connections")
+        else
+            pcall(function() joinBtn:Activate() end)
+            prints("✅ Join activado via Activate()")
+        end
     end
 
     -- justJoin (sin cambios)
@@ -231,61 +237,42 @@
         local func, err = loadstring(script)
         if func then
             local ok, result = pcall(func)
-            if not ok then
-                prints("Error while executing script: " .. tostring(result))
-            end
-        else
-            prints("Some unexpected error: " .. tostring(err))
-        end
+            if not ok then prints("Error al ejecutar script: "..tostring(result)) end
+        else prints("Error loadstring: "..tostring(err)) end
     end
 
-    -- Conectar al websocket
+    -- conectar WS (igual que tu original)
     local function connect()
         while not connected do
             prints("Trying to connect to " .. WebSocketURL)
             local success, socket = pcall(WebSocket.connect, WebSocketURL)
-            if success and socket then
-                ws = socket
-                connected = true
-                prints("Connected to WebSocket")
-            else
-                prints("Unable to connect to websocket, trying again..")
-                wait(1)
-            end
+            if success and socket then ws = socket connected = true prints("Connected to WebSocket") else prints("Unable to connect, retrying...") task.wait(1) end
         end
     end
 
     local function startTeleport()
-        if not ws then
-            prints("WebSocket not connected yet!")
-            return
-        end
+        if not ws then prints("WebSocket not connected!") return end
         ws.OnMessage:Connect(function(msg)
-            if not string.find(msg, "TeleportService") then
-                bypass10M(msg)
+            if not string.find(tostring(msg), "TeleportService") then
+                bypass10M(tostring(msg))
             else
                 justJoin(msg)
             end
         end)
-        ws.OnClose:Connect(function()
-            prints("WebSocket closed.")
-            connected = false
-        end)
-        prints("Teleport process started!")
+        ws.OnClose:Connect(function() prints("WebSocket closed.") connected = false end)
+        prints("Teleport process started")
     end
 
-    -- UI de control minimo
+    -- UI simple (tu boton)
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoJoinerGUI"
     screenGui.Parent = game:GetService("CoreGui")
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0, 150, 0, 50)
-    button.Position = UDim2.new(0.5, -75, 0.5, -25)
-    button.Text = "Autojoiner by Foundcito"
-    button.BackgroundColor3 = Color3.fromRGB(0,170,255)
-    button.TextScaled = true
-    button.Parent = screenGui
-    button.MouseButton1Click:Connect(function() startTeleport() end)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0,150,0,50)
+    btn.Position = UDim2.new(0.5,-75,0.5,-25)
+    btn.Text = "Autojoiner by Foundcito1"
+    btn.Parent = screenGui
+    btn.MouseButton1Click:Connect(function() startTeleport() end)
 
     connect()
 end)()
