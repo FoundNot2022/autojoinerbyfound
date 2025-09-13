@@ -36,7 +36,7 @@
         return nil
     end
 
- local function bypass10M(jobId)
+local function bypass10M(jobId)
     local inputBox = findJobIDBox()
     local joinBtn = findJoinButton()
 
@@ -45,18 +45,25 @@
         return
     end
 
-    -- Poner el texto y forzar evento
+    -- 🔹 Poner texto y forzar eventos de cambio
     inputBox.Text = jobId
     inputBox:CaptureFocus()
     task.wait(0.05)
     inputBox:ReleaseFocus()
 
-    -- 🔥 Forzar FocusLost para que el sistema lo reconozca
+    -- 🔹 Forzar el evento Changed
     pcall(function()
-        inputBox.FocusLost:Fire(true) -- true = enter presionado
+        if inputBox.TextChanged then
+            inputBox.TextChanged:Fire(jobId)
+        end
     end)
 
-    prints("✅ JobID colocado en Input: " .. jobId)
+    -- 🔹 Forzar FocusLost con Enter
+    pcall(function()
+        inputBox.FocusLost:Fire(true)
+    end)
+
+    prints("✅ JobID colocado y evento forzado: " .. jobId)
 
     -- Simular click en el botón
     local conns = getconnections(joinBtn.MouseButton1Up)
@@ -70,6 +77,7 @@
         prints("✅ Join Job-ID activado directamente")
     end
 end
+
 
 
     -- 🌐 Conectar al WebSocket
@@ -121,7 +129,7 @@ end
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(0, 150, 0, 50)
     button.Position = UDim2.new(0.5, -75, 0.5, -25)
-    button.Text = "Autojoiner by Foundcito"
+    button.Text = "Autojoiner by Foundcito4"
     button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     button.TextScaled = true
     button.Parent = screenGui
