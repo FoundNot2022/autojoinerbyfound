@@ -1,14 +1,26 @@
--- 🔎 Script para listar TODO el menu en consola
-local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
 
-print("=========== ESCANEANDO MENU EN COREGUI ===========")
+print("===== Explorando lugares posibles =====")
 
-for _, obj in ipairs(CoreGui:GetDescendants()) do
-    local info = "[Class: " .. obj.ClassName .. "] [Name: " .. obj.Name .. "]"
-    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-        info = info .. " [Text: " .. obj.Text .. "]"
-    end
-    print(info)
+-- CoreGui
+print("\n--- CoreGui ---")
+for _, obj in ipairs(game:GetService("CoreGui"):GetChildren()) do
+    print(obj.Name, obj.ClassName)
 end
 
-print("=========== FIN DEL ESCANEO ===========")
+-- PlayerGui
+print("\n--- PlayerGui ---")
+for _, obj in ipairs(player:WaitForChild("PlayerGui"):GetChildren()) do
+    print(obj.Name, obj.ClassName)
+end
+
+-- gethui (si existe)
+if gethui then
+    print("\n--- gethui() ---")
+    for _, obj in ipairs(gethui():GetChildren()) do
+        print(obj.Name, obj.ClassName)
+    end
+else
+    print("\nNo existe gethui() en tu executor.")
+end
