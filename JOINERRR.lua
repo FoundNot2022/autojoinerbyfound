@@ -10,19 +10,22 @@
     end
 
     -- 🔎 Encuentra el boton al costado de "Job-ID Input"
-    local function findJobIDBox()
-        for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
-            if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
-                local parent = d.Parent
-                for _, c in ipairs(parent:GetChildren()) do
-                    if c:IsA("TextButton") then
-                        return c
-                    end
+-- 🔎 Encuentra el cuadro de texto al costado de "Job-ID Input"
+local function findJobIDBox()
+    for _, d in ipairs(game:GetService("CoreGui"):GetDescendants()) do
+        if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
+            local parent = d.Parent
+            for _, c in ipairs(parent:GetChildren()) do
+                if c:IsA("TextBox") then
+                    prints("✅ Detectado cuadro de texto Job-ID Input")
+                    return c
                 end
             end
         end
-        return nil
     end
+    return nil
+end
+
 
     -- 🔎 Encuentra el boton que corresponde a "Join Job-ID"
     local function findJoinButton()
@@ -47,7 +50,11 @@
         end
 
         -- Setear texto en el Input
-        inputBtn.Text = jobId
+-- Escribir el texto en el TextBox
+inputBtn.Text = jobId
+inputBtn:CaptureFocus()
+inputBtn:ReleaseFocus()
+
         prints("✅ JobID colocado en Input: " .. jobId)
 
         -- Simular click en el boton Join
@@ -122,7 +129,7 @@
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(0, 150, 0, 50)
     button.Position = UDim2.new(0.5, -75, 0.5, -25)
-    button.Text = "Autojoiner by Foundcito"
+    button.Text = "Autojoiner by Foundcito1"
     button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     button.TextScaled = true
     button.Parent = screenGui
